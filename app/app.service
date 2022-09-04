@@ -1,0 +1,15 @@
+[Unit]
+Description=Webapp
+
+[Service]
+WorkingDirectory=/home/ubuntu
+ExecStart=python3 /home/ubuntu/app/main.py
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=webapp
+User=ubuntu
+
+[Install]
+WantedBy=default.target
