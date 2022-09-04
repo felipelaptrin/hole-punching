@@ -1,0 +1,72 @@
+---
+- name: Configure SSH on server
+  hosts: server
+  tasks:
+  - name: Modify SSH port, TCP forwarding and Gateway ports
+    become: true
+    lineinfile:
+      path: /etc/ssh/sshd_config
+      line: "{{ item }}"
+    with_items:
+      - "AllowTcpForwarding yes"
+      - "GatewayPorts yes"
+      - "Port 80"
+  - name: Restart sshd
+    become: true
+    systemd:
+      name: sshd
+      state: restarted
+
+
+- name: Configure app to run
+  hosts: host
+  vars_prompt:
+    - name: ssh_key_path
+      prompt: Input the path to the SSH key
+      private: false
+  tasks:
+  - name: Copy ssh key machine
+    copy:
+      src: "{{ ssh_key_path }}"
+      dest: ~/ssh_key.pem
+      mode: "600"
+  - name: Copy app folder
+    copy:
+      src: ../app 
+      dest: ~/
+  - name: Setup webapp service
+    block:
+      - name: Copy service to systemd
+        become: true
+        copy: 
+          src: /home/{{ansible_user_id}}/app/app.service 
+          remote_src: yes
+          dest: /etc/systemd/system/app.service
+      - name: Restart app service
+        become: true
+        systemd:
+          name: app
+          enabled: yes
+  - name: Update apt
+    become: true
+    apt:
+      upgrade: yes
+      update_cache: yes
+  - name: Install pip3
+    become: true
+    apt:
+      name: python3-pip
+  - name: Install pip3
+    package:
+      name: python3-pip
+      state: present
+  - name: Install python libs
+    pip:
+      requirements: ~/app/requirements.txt
+  - name: Start app service
+    become: true
+    systemd:
+      name: app
+      state: started
+  - name: Create SSH remote port forwarding
+    command: ssh -R 7000:127.0.0.1:8000 -N -f ubuntu@{{ groups['server'][0] }} -p 80 -i ~/ssh_key.pem -o "StrictHostKeyChecking no"
